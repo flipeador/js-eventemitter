@@ -1,0 +1,18 @@
+{
+  "name": "@flipeador/js-eventemitter",
+  "description": "Store listener functions and emit events.",
+  "version": "1.0.0",
+  "author": "Flipeador (https://github.com/flipeador)",
+  "repository": "github:flipeador/js-eventemitter",
+  "license": "Apache-2.0",
+  "main": "./src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "globals": "^13.24.0"
+  }
+}
