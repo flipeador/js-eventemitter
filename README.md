@@ -1,26 +1,26 @@
-# JavaScript EventEmitter
+# EventEmitter
 
 Store listener functions and emit events.
 
-#### Similar to [Node.js — Class EventEmitter](https://nodejs.org/api/events.html#class-eventemitter):
-
-- `EventEmitter` allows setting valid event names.
-- `EventEmitter#addListener` allows setting the maximum number of times a listening function can be called before it is removed.
-- `EventEmitter#emit` returns a list of results, or `null` if the event has no listeners.
-  - The second parameter is a list of arguments.
-  - The third parameter determines the behavior of listener function exceptions.
-  - The `error` event is not emitted.
-  - The standard `this` keyword is set to an object `{emitter,results,args}`.
-- `EventEmitter#emit2` returns a promise to deal with async listener functions.
-- Some repetitive or rarely used methods have not been included, and others have had their behavior slightly changed.
+Similar to [Node.js - Class: EventEmitter][node-ee].
 
 ## Installation
 
+Install from Git repository:
+
 ```
-npm i flipeador/js-eventemitter#semver:^1.0.0
+npm i flipeador/js-eventemitter#semver:^2.0.0
 ```
 
-## Example
+You may also install just from the subdirectory:
+
+```
+pnpm i "https://github.com/flipeador/js-eventemitter#path:src&semver:^2.0.0"
+```
+
+It is recommended to install from the subdirectory if your package manager supports it.
+
+## Examples
 
 <details>
 <summary><h4>Synchronous listener functions</h4></summary>
@@ -28,44 +28,44 @@ npm i flipeador/js-eventemitter#semver:^1.0.0
 ```js
 import { EventEmitter } from '@flipeador/js-eventemitter';
 
-const emitter = new EventEmitter();
+const ee = new EventEmitter();
 
-emitter.on('message', () => {
+ee.on('message', () => {
     console.log('message #1');
     return 'value #1';
 });
 
-emitter.on('message', () => {
+ee.on('message', () => {
     console.log('message #2');
     throw new Error('error #2'); // (1)
 });
 
-emitter.on('message', async () => {
-    console.log('message #3');
+ee.on('message', async () => {
+    console.log('message #3'); // (2)
     return 'value #3';
 });
 
 // By default, listener functions exceptions are thrown immediately.
-// This stops the loop and subsequent listening functions will not be called, if any.
+// This stops the loop and subsequent listener functions will not be called.
 try {
-    emitter.emit('message', ['arg1', 'arg2']);
+    ee.emit('message', ['arg1', 'arg2']);
 } catch (error) {
-    // Note that "message #3" is not displayed.
-    console.log('catch:', error.message); // (1)
+    // Note that "message #3" (2) is not displayed.
+    console.log('[CATCH]', error.message); // (1)
 }
 
-// The above behavior can be changed by setting a callback function.
-// Any returned value other than undefined will be added as a result.
+// Separator.
 console.log('-'.repeat(50));
-console.log(emitter.emit('message', [], error => {
-    return error; // result
-}));
+
+// The above behavior can be changed by specifying an error handler.
+// The return value of the error handler is added as a result.
+console.log(ee.emit('message', [], error => error));
 ```
 
 ```
 message #1
 message #2
-catch: error #2
+[CATCH] error #2
 --------------------------------------------------
 message #1
 message #2
@@ -74,7 +74,7 @@ message #3
   'value #1',
   Error: error #2
       ...,
-  Promise { 'value #3' }
+  Promise { <pending> }
 ]
 ```
 
@@ -86,45 +86,47 @@ message #3
 ```js
 import { EventEmitter } from '@flipeador/js-eventemitter';
 
-const emitter = new EventEmitter();
+const ee = new EventEmitter();
 
-emitter.on('message', () => {
+ee.on('message', () => {
     console.log('message #1');
     return 'value #1';
 });
 
-emitter.on('message', async () => {
+ee.on('message', async () => {
     console.log('message #2');
     throw new Error('error #2'); // (1)
 });
 
-emitter.on('message', async () => {
-    console.log('message #3');
+ee.on('message', async () => {
+    console.log('message #3'); // (2)
     return 'value #3';
 });
 
-(async () => {
+try {
     // In async functions, exceptions are not thrown immediately.
-    // This allows 'message #3' to be displayed on the console.
-    try {
-        await emitter.emit2('message', ['arg1', 'arg2']);
-    } catch (error) {
-        console.log('catch:', error.message); // (1)
-    }
+    // This allows 'message #3' (2) to be displayed on the console.
+    const results = ee.emit('message', ['arg1', 'arg2']);
+    await Promise.all(results ?? []); // throws (1)
+} catch (error) {
+    console.log('[CATCH]', error.message); // (1)
+}
 
-    // Note that 'value #3' is no longer a promise.
-    console.log('-'.repeat(50));
-    console.log(await emitter.emit2('message', [], error => {
-        return error; // result
-    }));
-})();
+// Separator.
+console.log('-'.repeat(50));
+
+// Note that 'value #3' is no longer a promise.
+let results = ee.emit('message', [], error => error);
+results = await Promise.allSettled(results ?? []);
+results = results.map(result => result.reason ?? result.value);
+console.log(results);
 ```
 
 ```
 message #1
 message #2
 message #3
-catch: error #2
+[CATCH] error #2
 --------------------------------------------------
 message #1
 message #2
@@ -140,6 +142,41 @@ message #3
 </details>
 
 <details>
+<summary><h4>Access results from previous listeners</h4></summary>
+
+```js
+import { EventEmitter } from '@flipeador/js-eventemitter';
+
+const ee = new EventEmitter();
+
+ee.on('message', async function() {
+    return new Promise(resolve => { // (1)
+        setTimeout(
+            () => resolve('message #1'),
+            3000
+        );
+    });
+});
+
+ee.on('message', async function() {
+    // Get the result of the previous listener.
+    const result = this.results.at(-1);
+    // Returns a promise that resolves after the previous (1).
+    return result.then(() => 'message #2'); // (2)
+});
+
+const results = ee.emit('message');
+await results[1]; // wait for (2)
+console.log(results);
+```
+
+```js
+[ Promise { 'message #1' }, Promise { 'message #2' } ]
+```
+
+</details>
+
+<details>
 <summary><h4>Valid event names and maximum number of listeners</h4></summary>
 
 ```js
@@ -147,25 +184,32 @@ import { EventEmitter } from '@flipeador/js-eventemitter';
 
 const MAX_LISTENERS = 10; // default
 
-const emitter = new EventEmitter(
+const ee = new EventEmitter(
     // List of valid event names.
     'message'
-).setMaxListeners(MAX_LISTENERS);
+);
+
+// Set the maximum number of listeners.
+ee.setMaxListeners(MAX_LISTENERS);
 
 try {
-    emitter.on('exit', console.log);
+    // Emit an invalid event.
+    ee.on('exit', console.log);
 } catch (error) {
-    console.log('catch:', error);
+    console.log('[CATCH]', error);
 }
 
-for (let index = MAX_LISTENERS+1; index; --index)
-    emitter.on('message', console.log);
+// Add more than the maximum number of listeners.
+for (let n = MAX_LISTENERS+1; n; --n)
+    ee.on('message', console.log);
 ```
 
 ```
-catch: EventEmitterError: Invalid event name: 'exit'
-    ...
-(node:6360) Error: Possible memory leak detected: 11 listeners added to 'message'
+[CATCH] EventEmitterError: Invalid event name
+    ... {
+  event: 'exit'
+}
+(node:12580) Error: Possible memory leak detected: 11 listeners added to message
 (Use `node --trace-warnings ...` to show where the warning was created)
 ```
 
@@ -173,4 +217,8 @@ catch: EventEmitterError: Invalid event name: 'exit'
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0**. See the [license file](LICENSE) for details.
+This project is licensed under the **GNU General Public License v3.0**.
+See the [license file](LICENSE) for details.
+
+<!-- REFERENCE LINKS -->
+[node-ee]: https://nodejs.org/api/events.html#class-eventemitter

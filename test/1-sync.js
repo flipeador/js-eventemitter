@@ -1,23 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { EventEmitter } from '@flipeador/js-eventemitter';
+import { EventEmitter } from '../src/index.js';
 
 const emitter = new EventEmitter(
-    'message',
-    'other'
+    'message'
 );
 
 await test('synchronous passing test', async (ctx) => {
-    assert.throws(() => {
-        emitter.listeners('invalid event');
+    let listeners;
+
+    await ctx.test('access invalid events', () => {
+        assert.throws(() => {
+            emitter.listeners('invalid event');
+        });
     });
 
-    const listeners = emitter.listeners('message');
-    assert.deepEqual(listeners, []);
+    await ctx.test('access valid events', () => {
+        listeners = emitter.listeners('message');
+        assert.deepEqual(listeners, []);
 
-    const events = emitter.events();
-    assert.deepEqual([...events.keys()], ['message']);
+        const events = emitter.events();
+        assert.deepEqual([...events.keys()], ['message']);
+    });
 
     await ctx.test('addListener', () => {
         assert.throws(() => {
@@ -36,6 +41,7 @@ await test('synchronous passing test', async (ctx) => {
 
     await ctx.test('removeListener', () => {
         emitter.removeListener('message', console.warn);
+
         assert.deepEqual(listeners, [
             { callback: console.log, count: 1 },
             { callback: console.error, count: Infinity }
@@ -47,15 +53,30 @@ await test('synchronous passing test', async (ctx) => {
         assert.deepEqual(listeners, []);
     });
 
-    await ctx.test('emit', () => {
-        emitter.addListener('other', (...args) => {
+    await ctx.test('emit without errors', () => {
+        emitter.addListener('message', (...args) => {
             assert.deepEqual(args, [1, 2]);
             return 'val1';
         });
 
-        emitter.addListener('other', () => 'val2');
+        emitter.addListener('message', () => 'val2');
 
-        const result = emitter.emit('other', [1, 2]);
-        assert.deepEqual(result, ['val1', 'val2']);
+        const results = emitter.emit('message', [1, 2]);
+        assert.deepEqual(results, ['val1', 'val2']);
+    });
+
+    await ctx.test('emit with errors', () => {
+        const error = new Error('ERROR');
+
+        emitter.addListener('message', () => {
+            throw error;
+        });
+
+        assert.throws(() => {
+            emitter.emit('message', [1, 2]);
+        }, error);
+
+        const results = emitter.emit('message', [1, 2], error => error);
+        assert.deepEqual(results, ['val1', 'val2', error]);
     });
 });
