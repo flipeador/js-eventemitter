@@ -15,7 +15,7 @@ npm i flipeador/js-eventemitter#semver:^2.0.0
 You may also install just from the subdirectory:
 
 ```
-pnpm i "https://github.com/flipeador/js-eventemitter#path:src&semver:^2.0.0"
+pnpm i "flipeador/js-eventemitter#path:src&semver:^2.0.0"
 ```
 
 It is recommended to install from the subdirectory if your package manager supports it.
